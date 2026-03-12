@@ -3,6 +3,7 @@ name = "dicom-insight"
 version = "0.1.0"
 description = "Human-readable DICOM metadata explorer for developers"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [
   { name = "D/Vision Lab" }
