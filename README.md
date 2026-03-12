@@ -80,9 +80,3 @@ For production, you would replace `TemplateLLMProvider` with an adapter for Open
 - It infers context from metadata only.
 - Contrast detection is heuristic.
 - Orientation detection is intentionally conservative.
-
-## Good blog angles for D/Vision Lab
-
-- using metadata-first AI assistance in medical imaging pipelines
-- building safer AI helpers that do not touch pixels initially
-- DICOM QA and ingestion tooling for PACS / cloud viewers
