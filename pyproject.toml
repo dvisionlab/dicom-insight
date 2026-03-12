@@ -1,0 +1,22 @@
+[project]
+name = "dicom-insight"
+version = "0.1.0"
+description = "Human-readable DICOM metadata explorer for developers"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "D/Vision Lab" }
+]
+
+dependencies = [
+  "pydicom>=2.4",
+  "numpy>=1.24",
+  "rich>=13.0"
+]
+
+[project.scripts]
+dicom-insight = "dicom_insight.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
