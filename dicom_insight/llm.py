@@ -8,6 +8,8 @@ from .models import DicomInsightReport
 
 class ExplanationProvider(Protocol):
     def explain(self, report: DicomInsightReport) -> str: ...
+    def summarize(self, report: DicomInsightReport, deep_context: bool = False) -> str: ...
+    def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]: ...
 
 
 @dataclass(slots=True)
@@ -35,3 +37,49 @@ class TemplateLLMProvider:
                 f"{', '.join(st.modalities) or 'unknown'}."
             )
         return f"[{self.style}] Empty report."
+
+    def summarize(self, report: DicomInsightReport, deep_context: bool = False) -> str:
+        return self.explain(report)
+
+    def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]:
+        return []
+
+
+@dataclass(slots=True)
+class GeminiProvider:
+    """Provider for Google Gemini models (2.0-flash, 3.1-pro, etc.)"""
+    api_key: str
+    model: str = "gemini-3.1-pro-preview"
+
+    def _query_gemini(self, system_instruction: str, user_prompt: str) -> str:
+        # This is a 'Lite' implementation using httpx to avoid heavy SDKs
+        import httpx
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        payload = {
+            "system_instruction": {"parts": [{"text": system_instruction}]},
+            "contents": [{"parts": [{"text": user_prompt}]}]
+        }
+        try:
+            resp = httpx.post(url, json=payload, timeout=30.0)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception as e:
+            return f"Error querying Gemini: {e}"
+
+    def explain(self, report: DicomInsightReport) -> str:
+        # Default behavior: basic explanation
+        return self.summarize(report, deep_context=False)
+
+    def summarize(self, report: DicomInsightReport, deep_context: bool = False) -> str:
+        system = "You are a Radiology Metadata Analyst. Provide a concise, clinical summary of the DICOM data provided."
+        user = f"DICOM Metadata: {report.to_json()}"
+        return self._query_gemini(system, user)
+
+    def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]:
+        system = "You are a PACS Quality Assurance specialist. Identify technical inconsistencies in the DICOM metadata. Return a list of anomalies."
+        user = f"DICOM Metadata: {report.to_json()}"
+        resp = self._query_gemini(system, user)
+        # Basic parsing: assume one per line if starting with '-' or number
+        return [line.strip("- *").strip() for line in resp.splitlines() if line.strip()]
+

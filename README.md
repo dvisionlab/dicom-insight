@@ -13,17 +13,17 @@ Medical imaging workflows are full of metadata that is technically rich but hard
 - a clean Python API
 - a CLI for quick inspection
 - deterministic heuristics that work without a cloud dependency
-- an optional provider interface for LLM-powered explanations
+- an optional provider interface for LLM-powered explanations and anomaly detection
+- deep clinical reasoning using Google Gemini 3.1
 
 ## Installation
 
 This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
 
-1. **Install uv** (if you haven't already):
+1. **Install uv**:
    ```powershell
    powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
    ```
-   *For other OS/methods, see [uv documentation](https://docs.astral.sh/uv/getting-started/installation/).*
 
 2. **Sync dependencies**:
    ```bash
@@ -34,49 +34,54 @@ This project uses [uv](https://github.com/astral-sh/uv) for dependency managemen
 
 ```python
 from dicom_insight import analyze_file, analyze_path
+from dicom_insight.llm import GeminiProvider
 
-report = analyze_file("./ct_head.dcm")
-print(report.summary)
-print(report.explanation)
+# AI-powered clinical analysis
+provider = GeminiProvider(api_key="YOUR_GOOGLE_API_KEY", model="gemini-3.1-pro")
+report = analyze_path("./study_folder", provider=provider, deep_context=True)
 
-study_report = analyze_path("./study_folder")
-print(study_report.to_json())
+print(report.ai_summary)       # High-level protocol synthesis
+print(report.technical_anomalies) # AI-detected metadata inconsistencies
 ```
 
-## Example output
+## AI-Powered Insights
 
-```text
-CT head — 1 images, 512×512, 1 mm
+`dicom-insight` leverages LLMs (specializing in Gemini 3.1) to move beyond simple metadata listing:
 
-CT series of the head Series description: HEAD W/O CONTRAST. Acquisition summary: 1 instance, matrix 512×512, slice thickness 1 mm. Likely viewing plane: axial. No clear sign of contrast usage was found in the available metadata.
-```
+- **Intelligent Summarization**: Infers clinical protocols (e.g., "CT Head Stroke Protocol") by synthesizing multiple series.
+- **Technical Anomaly Detection**: Identifies subtle metadata "smells" like mismatched slice spacing or inconsistent reconstruction kernels.
+- **Deep Metadata Context**: Use the `--deep-context` flag to provide the LLM with the full richness of the DICOM header while maintaining smart deduplication for large studies.
 
 ## CLI
 
-You can run the CLI directly using `uv run`:
-
 ```bash
+# Basic summary
 uv run dicom-insight ./study_folder
+
+# AI-powered summary (requires GOOGLE_API_KEY env var)
+uv run dicom-insight ./study_folder
+
+# Deep metadata analysis for clinical reasoning
+uv run dicom-insight ./study_folder --deep-context
+
+# JSON output
 uv run dicom-insight ./study_folder --json
 ```
 
-## LLM hook
+## LLM Configuration
 
-The library includes a tiny provider protocol so you can swap in an external model without changing the analysis layer.
+The library is provider-agnostic. While Gemini is the recommended engine, you can implement custom providers via the `ExplanationProvider` protocol.
 
 ```python
-from dicom_insight import analyze_file
-from dicom_insight.llm import TemplateLLMProvider
+from dicom_insight.llm import GeminiProvider
+import os
 
-report = analyze_file("./ct_head.dcm", provider=TemplateLLMProvider(style="concise"))
-print(report.explanation)
+provider = GeminiProvider(api_key=os.environ["GOOGLE_API_KEY"], model="gemini-3.1-pro")
 ```
-
-For production, you would replace `TemplateLLMProvider` with an adapter for OpenAI, Azure OpenAI, Ollama, or any internal inference endpoint.
 
 ## Limits
 
-- It does **not** inspect pixel data semantics.
-- It infers context from metadata only.
-- Contrast detection is heuristic.
-- Orientation detection is intentionally conservative.
+- No pixel data inspection.
+- Heuristics are deterministic; AI insights are probabilistic.
+- Orientation detection remains conservative.
+

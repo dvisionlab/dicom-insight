@@ -22,6 +22,7 @@ class DicomSeriesReport:
     contrast_suspected: bool | None
     orientation: str | None
     warnings: list[str] = field(default_factory=list)
+    raw_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -36,6 +37,7 @@ class DicomStudyReport:
     patient_age: str | None
     series: list[DicomSeriesReport]
     warnings: list[str] = field(default_factory=list)
+    raw_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -46,7 +48,10 @@ class DicomInsightReport:
     series: DicomSeriesReport | None = None
     summary: str = ""
     explanation: str = ""
+    ai_summary: str | None = None
+    technical_anomalies: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -11,12 +11,23 @@ from typing import Callable
 
 
 
-def analyze_file(path: str | Path, provider: ExplanationProvider | None = None) -> DicomInsightReport:
+def analyze_file(
+    path: str | Path, 
+    provider: ExplanationProvider | None = None,
+    deep_context: bool = False
+) -> DicomInsightReport:
     ds = load_dataset(path)
-    series_report = summarize_series([ds])
+    series_report = summarize_series([ds], include_raw=deep_context)
     report = DicomInsightReport(source=str(path), kind="file", series=series_report)
     report.summary = make_summary(report)
-    report.explanation = provider.explain(report) if provider else explain_series(series_report)
+    
+    if provider:
+        report.explanation = provider.explain(report)
+        report.ai_summary = provider.summarize(report, deep_context=deep_context)
+        report.technical_anomalies = provider.detect_anomalies(report, deep_context=deep_context)
+    else:
+        report.explanation = explain_series(series_report)
+        
     report.warnings = list(series_report.warnings)
     return report
 
@@ -25,11 +36,12 @@ def analyze_file(path: str | Path, provider: ExplanationProvider | None = None) 
 def analyze_path(
     path: str | Path, 
     provider: ExplanationProvider | None = None,
-    on_progress: Callable[[int, int], None] | None = None
+    on_progress: Callable[[int, int], None] | None = None,
+    deep_context: bool = False
 ) -> DicomInsightReport:
     path_obj = Path(path)
     if path_obj.is_file():
-        return analyze_file(path_obj, provider=provider)
+        return analyze_file(path_obj, provider=provider, deep_context=deep_context)
 
     # Collect files to get total count for progress reporting
     files = list(iter_dicom_files(path_obj))
@@ -53,14 +65,22 @@ def analyze_path(
     if not datasets:
         raise FileNotFoundError(f"No readable DICOM files found in {path_obj}")
 
-    study_report = summarize_study(datasets)
+    study_report = summarize_study(datasets, include_raw=deep_context)
     report = DicomInsightReport(source=str(path), kind="path", study=study_report)
     report.summary = make_summary(report)
-    report.explanation = provider.explain(report) if provider else explain_study(study_report)
+    
+    if provider:
+        report.explanation = provider.explain(report)
+        report.ai_summary = provider.summarize(report, deep_context=deep_context)
+        report.technical_anomalies = provider.detect_anomalies(report, deep_context=deep_context)
+    else:
+        report.explanation = explain_study(study_report)
+        
     report.warnings = list(study_report.warnings)
-    if seen != len(datasets):
+    if seen != len(files):  # Fixed logic: compare with total files found
         report.warnings.append("Some files could not be parsed")
     return report
+
 
 
 
