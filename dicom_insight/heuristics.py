@@ -109,7 +109,8 @@ def dataset_to_dict_safe(ds: Dataset) -> dict[str, Any]:
                 out[elem.keyword or f"({elem.tag.group:04X},{elem.tag.element:04X})"] = val
             elif isinstance(val, list) and all(isinstance(x, (str, int, float)) for x in val):
                 out[elem.keyword or f"({elem.tag.group:04X},{elem.tag.element:04X})"] = val
-        except Exception:
+        except (AttributeError, TypeError, ValueError): # Catch specific exceptions
+            continue
             continue
     return out
 
