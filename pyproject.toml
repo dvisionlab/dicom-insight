@@ -12,7 +12,8 @@ authors = [
 dependencies = [
   "pydicom>=2.4",
   "numpy>=1.24",
-  "rich>=13.0"
+  "rich>=13.0",
+  "httpx>=0.20.0"
 ]
 
 [project.scripts]

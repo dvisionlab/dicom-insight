@@ -97,7 +97,26 @@ def guess_contrast(ds: Dataset) -> bool | None:
 
 
 
-def summarize_series(datasets: Iterable[Dataset]) -> DicomSeriesReport:
+def dataset_to_dict_safe(ds: Dataset) -> dict[str, Any]:
+    """Convert dataset to a dict of string/numeric tags, skipping binary/pixels."""
+    out = {}
+    for elem in ds:
+        if elem.VR in ("OB", "OW", "OF", "OD", "UN", "SQ"):
+            continue
+        try:
+            val = elem.value
+            if isinstance(val, (str, int, float)):
+                out[elem.keyword or f"({elem.tag.group:04X},{elem.tag.element:04X})"] = val
+            elif isinstance(val, list) and all(isinstance(x, (str, int, float)) for x in val):
+                out[elem.keyword or f"({elem.tag.group:04X},{elem.tag.element:04X})"] = val
+        except (AttributeError, TypeError, ValueError): # Catch specific exceptions
+            continue
+            continue
+    return out
+
+
+
+def summarize_series(datasets: Iterable[Dataset], include_raw: bool = False) -> DicomSeriesReport:
     items = list(datasets)
     if not items:
         raise ValueError("Cannot summarize an empty series")
@@ -118,7 +137,7 @@ def summarize_series(datasets: Iterable[Dataset]) -> DicomSeriesReport:
     if modality is None:
         warnings.append("Missing modality")
 
-    return DicomSeriesReport(
+    report = DicomSeriesReport(
         series_instance_uid=_get_str(first, "SeriesInstanceUID"),
         series_number=_get_int(first, "SeriesNumber"),
         description=_get_str(first, "SeriesDescription"),
@@ -135,10 +154,14 @@ def summarize_series(datasets: Iterable[Dataset]) -> DicomSeriesReport:
         orientation=guess_orientation(first),
         warnings=warnings,
     )
+    if include_raw:
+        # Full first instance metadata as representative
+        report.raw_metadata = dataset_to_dict_safe(first)
+    return report
 
 
 
-def summarize_study(datasets: Iterable[Dataset]) -> DicomStudyReport:
+def summarize_study(datasets: Iterable[Dataset], include_raw: bool = False) -> DicomStudyReport:
     items = list(datasets)
     if not items:
         raise ValueError("Cannot summarize an empty study")
@@ -149,7 +172,7 @@ def summarize_study(datasets: Iterable[Dataset]) -> DicomStudyReport:
         key = _get_str(ds, "SeriesInstanceUID") or f"__series_{len(by_series)+1}"
         by_series.setdefault(key, []).append(ds)
 
-    series_reports = [summarize_series(group) for group in by_series.values()]
+    series_reports = [summarize_series(group, include_raw=include_raw) for group in by_series.values()]
     modalities = sorted({s.modality for s in series_reports if s.modality})
     body_parts = sorted({s.body_part_examined for s in series_reports if s.body_part_examined})
     warnings: list[str] = []
@@ -163,7 +186,7 @@ def summarize_study(datasets: Iterable[Dataset]) -> DicomStudyReport:
     patient_ages = Counter(_get_str(ds, "PatientAge") for ds in items if _get_str(ds, "PatientAge"))
     patient_age = patient_ages.most_common(1)[0][0] if patient_ages else None
 
-    return DicomStudyReport(
+    report = DicomStudyReport(
         study_instance_uid=_get_str(first, "StudyInstanceUID"),
         study_description=_get_str(first, "StudyDescription"),
         accession_number=_get_str(first, "AccessionNumber"),
@@ -175,3 +198,9 @@ def summarize_study(datasets: Iterable[Dataset]) -> DicomStudyReport:
         series=sorted(series_reports, key=lambda s: (s.series_number or 0, s.description or "")),
         warnings=warnings,
     )
+    if include_raw:
+        # Study-level tags are often constant in the first dataset
+        # We also collect common hints specifically
+        report.raw_metadata = dataset_to_dict_safe(first)
+    return report
+
