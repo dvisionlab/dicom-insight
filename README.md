@@ -68,6 +68,54 @@ uv run dicom-insight ./study_folder --deep-context
 uv run dicom-insight ./study_folder --json
 ```
 
+### Setting the `GOOGLE_API_KEY` environment variable
+
+The CLI automatically detects the `GOOGLE_API_KEY` environment variable and enables AI-powered features when it is present.
+
+**Linux / macOS**
+
+Set the variable for the current shell session:
+
+```bash
+export GOOGLE_API_KEY="your_api_key_here"
+```
+
+To make it permanent, add the line above to your `~/.bashrc`, `~/.zshrc`, or the appropriate shell configuration file, then reload it:
+
+```bash
+source ~/.bashrc
+```
+
+**Windows (Command Prompt)**
+
+Set the variable for the current session:
+
+```cmd
+set GOOGLE_API_KEY=your_api_key_here
+```
+
+To set it permanently via the system settings:
+
+```cmd
+setx GOOGLE_API_KEY "your_api_key_here"
+```
+
+**Windows (PowerShell)**
+
+Set the variable for the current session:
+
+```powershell
+$env:GOOGLE_API_KEY = "your_api_key_here"
+```
+
+To set it permanently for the current user:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable("GOOGLE_API_KEY", "your_api_key_here", "User")
+```
+
+> **Note:** After using `setx` or `SetEnvironmentVariable`, you need to open a new terminal window for the change to take effect.
+
 ## LLM Configuration
 
 The library is provider-agnostic. While Gemini is the recommended engine, you can implement custom providers via the `ExplanationProvider` protocol.
