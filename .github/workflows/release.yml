@@ -41,10 +41,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync
-
-      - name: Install PyInstaller
-        run: uv pip install pyinstaller
+        run: uv sync --group dev
 
       - name: Build executable
         run: uv run pyinstaller dicom_insight.spec --distpath dist

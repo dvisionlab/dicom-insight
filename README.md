@@ -52,6 +52,40 @@ print(report.technical_anomalies) # AI-detected metadata inconsistencies
 - **Technical Anomaly Detection**: Identifies subtle metadata "smells" like mismatched slice spacing or inconsistent reconstruction kernels.
 - **Deep Metadata Context**: Use the `--deep-context` flag to provide the LLM with the full richness of the DICOM header while maintaining smart deduplication for large studies.
 
+## Building executables
+
+You can produce a standalone executable using [PyInstaller](https://pyinstaller.org) — no Python installation required on the target machine.
+
+### Prerequisites
+
+Install the dev dependencies (includes PyInstaller):
+
+```bash
+uv sync --group dev
+```
+
+### Build
+
+A ready-to-use spec file is included in the repository root:
+
+```bash
+uv run pyinstaller dicom_insight.spec
+```
+
+The executable is written to `dist/dicom-insight` (or `dist/dicom-insight.exe` on Windows).
+
+### Platform-specific builds
+
+PyInstaller only produces executables for the OS you build on, so to get all three platform binaries you need to run the command on each system:
+
+| Platform | Command | Output |
+|---|---|---|
+| Linux | `uv run pyinstaller dicom_insight.spec` | `dist/dicom-insight` |
+| macOS | `uv run pyinstaller dicom_insight.spec` | `dist/dicom-insight` |
+| Windows | `uv run pyinstaller dicom_insight.spec` | `dist\dicom-insight.exe` |
+
+Pre-built binaries for Linux, Windows, and macOS are also attached to every [GitHub Release](https://github.com/dvisionlab/dicom-insight/releases).
+
 ## CLI
 
 ```bash
