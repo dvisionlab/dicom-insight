@@ -26,7 +26,7 @@ jobs:
           python-version-file: pyproject.toml
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --group dev
 
       - name: Run tests
-        run: uv run --with pytest pytest tests/ -v
+        run: uv run pytest tests/ -v
