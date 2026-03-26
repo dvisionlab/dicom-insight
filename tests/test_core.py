@@ -72,6 +72,29 @@ def test_analyze_path() -> None:
 
 
 
+def test_hidden_files_are_skipped() -> None:
+    """Dotfiles and files inside hidden directories must not be parsed."""
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        study_uid = generate_uid()
+        series_uid = generate_uid()
+        for i in range(2):
+            _make_dataset(root / f"slice_{i}.dcm", instance_number=i + 1, series_uid=series_uid, study_uid=study_uid)
+
+        # Create hidden files that should be ignored
+        (root / "._resource_fork").write_bytes(b"\x00" * 4)
+        (root / ".DS_Store").write_bytes(b"\x00" * 16)
+        hidden_dir = root / ".hidden"
+        hidden_dir.mkdir()
+        _make_dataset(hidden_dir / "slice_0.dcm", instance_number=3, series_uid=series_uid, study_uid=study_uid)
+
+        report = analyze_path(root)
+        assert report.study is not None
+        # Only the 2 visible slices should be counted; hidden dir file excluded
+        assert report.study.series[0].image_count == 2
+
+
+
 class _FailingProvider:
     """Stub that always raises GeminiError (simulates 429 / network failure)."""
 

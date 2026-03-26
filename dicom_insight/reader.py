@@ -33,6 +33,8 @@ def iter_dicom_files(path: str | Path) -> Iterable[Path]:
     if not root.exists():
         raise FileNotFoundError(f"Path does not exist: {root}")
     for file_path in sorted(root.rglob("*")):
+        if any(part.startswith(".") for part in file_path.relative_to(root).parts):
+            continue
         if is_probably_dicom(file_path):
             yield file_path
 
