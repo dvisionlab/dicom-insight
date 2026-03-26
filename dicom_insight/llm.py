@@ -6,6 +6,10 @@ from typing import Protocol
 from .models import DicomInsightReport
 
 
+class GeminiError(Exception):
+    """Raised when the Gemini API returns an error or is unreachable."""
+
+
 class ExplanationProvider(Protocol):
     def explain(self, report: DicomInsightReport) -> str: ...
     def summarize(self, report: DicomInsightReport, deep_context: bool = False) -> str: ...
@@ -65,7 +69,7 @@ class GeminiProvider:
             data = resp.json()
             return data["candidates"][0]["content"]["parts"][0]["text"]
         except Exception as e:
-            return f"Error querying Gemini: {e}"
+            raise GeminiError(str(e)) from e
 
     def explain(self, report: DicomInsightReport) -> str:
         # Default behavior: basic explanation

@@ -15,7 +15,7 @@ def format_report_header(folder_name: str) -> str:
 
 
 def format_series_table(series_list: list[DicomSeriesReport]) -> str:
-    """Return a GitHub-flavoured Markdown table summarising each series."""
+    """Return a GitHub-flavoured Markdown table summarizing each series."""
     rows = []
     for s in series_list:
         series_num = str(s.series_number) if s.series_number is not None else "-"

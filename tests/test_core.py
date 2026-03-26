@@ -7,6 +7,8 @@ from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
 from dicom_insight import analyze_file, analyze_path
+from dicom_insight.llm import GeminiError
+from dicom_insight.models import DicomInsightReport
 
 
 
@@ -67,3 +69,57 @@ def test_analyze_path() -> None:
         assert len(report.study.series) == 1
         assert report.study.series[0].image_count == 3
         assert report.summary.startswith("Study with 1 series")
+
+
+
+class _FailingProvider:
+    """Stub that always raises GeminiError (simulates 429 / network failure)."""
+
+    def explain(self, report: DicomInsightReport) -> str:
+        raise GeminiError("429 Resource has been exhausted")
+
+    def summarize(self, report: DicomInsightReport, deep_context: bool = False) -> str:
+        raise GeminiError("429 Resource has been exhausted")
+
+    def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]:
+        raise GeminiError("429 Resource has been exhausted")
+
+
+
+def test_gemini_failure_falls_back_to_heuristics_file() -> None:
+    """When the LLM provider raises GeminiError the report must still be complete."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "one.dcm"
+        _make_dataset(path, instance_number=1, series_uid=generate_uid(), study_uid=generate_uid())
+
+        report = analyze_file(path, provider=_FailingProvider())
+
+        # Heuristic explanation must be present (not an error string)
+        assert report.explanation
+        assert "Error" not in report.explanation
+        assert "contrast" in report.explanation.lower()
+        # No LLM content
+        assert report.ai_summary is None
+        assert report.technical_anomalies == []
+        # Warning must mention the LLM failure
+        assert any("LLM" in w for w in report.warnings)
+
+
+
+def test_gemini_failure_falls_back_to_heuristics_path() -> None:
+    """Same fallback check for folder analysis."""
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        study_uid = generate_uid()
+        series_uid = generate_uid()
+        for i in range(3):
+            _make_dataset(root / f"slice_{i}.dcm", instance_number=i + 1, series_uid=series_uid, study_uid=study_uid)
+
+        report = analyze_path(root, provider=_FailingProvider())
+
+        assert report.study is not None
+        assert report.explanation
+        assert "Error" not in report.explanation
+        assert report.ai_summary is None
+        assert report.technical_anomalies == []
+        assert any("LLM" in w for w in report.warnings)
