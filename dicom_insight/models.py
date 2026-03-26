@@ -21,6 +21,7 @@ class DicomSeriesReport:
     spacing_between_slices: float | None
     contrast_suspected: bool | None
     orientation: str | None
+    kernel: str | None = None
     warnings: list[str] = field(default_factory=list)
     raw_metadata: dict[str, Any] = field(default_factory=dict)
 
