@@ -1,4 +1,4 @@
-# dicom-insight
+# 🧠🔎 dicom-insight
 
 A small Python library that turns raw DICOM metadata into a structured summary and a human-readable explanation.
 
