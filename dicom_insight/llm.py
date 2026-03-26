@@ -14,6 +14,7 @@ class ExplanationProvider(Protocol):
     def explain(self, report: DicomInsightReport) -> str: ...
     def summarize(self, report: DicomInsightReport, deep_context: bool = False) -> str: ...
     def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]: ...
+    def analyze_anatomy(self, report: DicomInsightReport) -> str | None: ...
 
 
 @dataclass(slots=True)
@@ -47,6 +48,9 @@ class TemplateLLMProvider:
 
     def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]:
         return []
+
+    def analyze_anatomy(self, report: DicomInsightReport) -> str | None:
+        return None
 
 
 @dataclass(slots=True)
@@ -102,4 +106,21 @@ class GeminiProvider:
         if not blocks:
             blocks = [line.strip("- *").strip() for line in resp.splitlines() if line.strip()]
         return blocks
+
+    def analyze_anatomy(self, report: DicomInsightReport) -> str | None:
+        system = (
+            "You are a medical imaging expert. "
+            "Analyze the DICOM tags BodyPartExamined, ProtocolName, and SeriesDescription "
+            "from the metadata provided. "
+            "Identify the prevalent anatomical region (e.g., Abdomen, Chest, Head) and the "
+            "imaging projection (Axial, Coronal, Sagittal). "
+            "If the tags are consistent, respond with a single concise line such as: "
+            "'Anatomical region: **Chest** — projection: **Axial**.'. "
+            "If the tags are discordant, use your medical knowledge to infer the most likely "
+            "region, then format your answer as a GitHub Markdown callout using '> [!NOTE]', "
+            "briefly explaining the discordance and stating the most probable region. "
+            "Keep the response short."
+        )
+        user = f"DICOM Metadata: {report.to_json()}"
+        return self._query_gemini(system, user)
 

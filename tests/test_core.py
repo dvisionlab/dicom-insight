@@ -123,3 +123,66 @@ def test_gemini_failure_falls_back_to_heuristics_path() -> None:
         assert report.ai_summary is None
         assert report.technical_anomalies == []
         assert any("LLM" in w for w in report.warnings)
+
+
+# ---------------------------------------------------------------------------
+# Anatomy analysis tests
+# ---------------------------------------------------------------------------
+
+def test_anatomy_heuristic_consistent_tags() -> None:
+    """HEAD BodyPartExamined + matching SeriesDescription → clean region line."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "one.dcm"
+        _make_dataset(path, instance_number=1, series_uid=generate_uid(), study_uid=generate_uid())
+
+        report = analyze_file(path)
+        assert report.anatomy_analysis is not None
+        # Should mention Head (consistent tags, no discordance callout expected)
+        assert "Head" in report.anatomy_analysis
+        assert "[!NOTE]" not in report.anatomy_analysis
+
+
+def test_anatomy_heuristic_discordant_tags() -> None:
+    """Discordant BodyPartExamined vs SeriesDescription triggers a [!NOTE] callout."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "one.dcm"
+        _make_dataset(path, instance_number=1, series_uid=generate_uid(), study_uid=generate_uid())
+
+        # Overwrite the DICOM file with mismatched tags
+        from pydicom import dcmread
+        ds = dcmread(str(path))
+        ds.BodyPartExamined = "CHEST"       # says chest
+        ds.SeriesDescription = "BRAIN MRI"  # says head/brain
+        ds.save_as(str(path), write_like_original=False)
+
+        report = analyze_file(path)
+        assert report.anatomy_analysis is not None
+        # Discordance must be flagged
+        assert "[!NOTE]" in report.anatomy_analysis
+
+
+def test_anatomy_heuristic_no_recognisable_tags() -> None:
+    """When tags carry no anatomy keywords, anatomy_analysis is None."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "one.dcm"
+        _make_dataset(path, instance_number=1, series_uid=generate_uid(), study_uid=generate_uid())
+
+        from pydicom import dcmread
+        ds = dcmread(str(path))
+        del ds.BodyPartExamined
+        ds.SeriesDescription = "SCOUT"  # no anatomy keyword
+        ds.save_as(str(path), write_like_original=False)
+
+        report = analyze_file(path)
+        assert report.anatomy_analysis is None
+
+
+def test_details_paragraph_breaks() -> None:
+    """explain_series should produce multi-paragraph text, not a single long line."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "one.dcm"
+        _make_dataset(path, instance_number=1, series_uid=generate_uid(), study_uid=generate_uid())
+
+        report = analyze_file(path)
+        # Paragraph break between each logical sentence
+        assert "\n\n" in report.explanation

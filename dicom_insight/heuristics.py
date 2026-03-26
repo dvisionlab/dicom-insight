@@ -131,6 +131,7 @@ def summarize_series(datasets: Iterable[Dataset], include_raw: bool = False) -> 
     pixel_spacing = _get_float_list(first, "PixelSpacing")
     body_part = _get_str(first, "BodyPartExamined")
     kernel = _get_str(first, "ConvolutionKernel")
+    protocol_name = _get_str(first, "ProtocolName")
 
     if rows is None or cols is None:
         warnings.append("Missing image dimensions")
@@ -153,6 +154,7 @@ def summarize_series(datasets: Iterable[Dataset], include_raw: bool = False) -> 
         contrast_suspected=guess_contrast(first),
         orientation=guess_orientation(first),
         kernel=kernel,
+        protocol_name=protocol_name,
         warnings=warnings,
     )
     if include_raw:

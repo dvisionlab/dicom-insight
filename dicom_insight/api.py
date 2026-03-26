@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .explainer import explain_series, explain_study, make_summary
+from .explainer import explain_anatomy_heuristic, explain_series, explain_study, make_summary
 from .heuristics import summarize_series, summarize_study
 from .llm import ExplanationProvider, GeminiError
 from .models import DicomInsightReport
@@ -25,6 +25,7 @@ def _apply_provider(
         report.explanation = provider.explain(report)
         report.ai_summary = provider.summarize(report, deep_context=deep_context)
         report.technical_anomalies = provider.detect_anomalies(report, deep_context=deep_context)
+        report.anatomy_analysis = provider.analyze_anatomy(report)
         return True
     except GeminiError as exc:
         report.warnings.append(f"LLM analysis unavailable: {exc}")
@@ -45,8 +46,10 @@ def analyze_file(
     if provider:
         if not _apply_provider(report, provider, deep_context):
             report.explanation = explain_series(series_report)
+            report.anatomy_analysis = explain_anatomy_heuristic(report)
     else:
         report.explanation = explain_series(series_report)
+        report.anatomy_analysis = explain_anatomy_heuristic(report)
 
     # Merge heuristic warnings; preserve any LLM-failure warning already in report.warnings
     for w in series_report.warnings:
@@ -95,8 +98,10 @@ def analyze_path(
     if provider:
         if not _apply_provider(report, provider, deep_context):
             report.explanation = explain_study(study_report)
+            report.anatomy_analysis = explain_anatomy_heuristic(report)
     else:
         report.explanation = explain_study(study_report)
+        report.anatomy_analysis = explain_anatomy_heuristic(report)
 
     # Merge heuristic warnings; preserve any LLM-failure warning already in report.warnings
     for w in study_report.warnings:

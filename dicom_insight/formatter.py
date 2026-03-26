@@ -82,6 +82,13 @@ def format_markdown_report(report: DicomInsightReport, show_tags: bool = False) 
     lines.append(report.explanation)
     lines.append("")
 
+    # --- Anatomy & Projection Analysis ---
+    if report.anatomy_analysis:
+        lines.append("### Anatomy & Projection")
+        lines.append("")
+        lines.append(report.anatomy_analysis)
+        lines.append("")
+
     # --- AI Technical Insights ---
     if report.technical_anomalies:
         lines.append("## AI Technical Insights")
