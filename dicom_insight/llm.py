@@ -6,10 +6,15 @@ from typing import Protocol
 from .models import DicomInsightReport
 
 
+class GeminiError(Exception):
+    """Raised when the Gemini API returns an error or is unreachable."""
+
+
 class ExplanationProvider(Protocol):
     def explain(self, report: DicomInsightReport) -> str: ...
     def summarize(self, report: DicomInsightReport, deep_context: bool = False) -> str: ...
     def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]: ...
+    def analyze_anatomy(self, report: DicomInsightReport) -> str | None: ...
 
 
 @dataclass(slots=True)
@@ -44,6 +49,9 @@ class TemplateLLMProvider:
     def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]:
         return []
 
+    def analyze_anatomy(self, report: DicomInsightReport) -> str | None:
+        return None
+
 
 @dataclass(slots=True)
 class GeminiProvider:
@@ -65,21 +73,54 @@ class GeminiProvider:
             data = resp.json()
             return data["candidates"][0]["content"]["parts"][0]["text"]
         except Exception as e:
-            return f"Error querying Gemini: {e}"
+            raise GeminiError(str(e)) from e
 
     def explain(self, report: DicomInsightReport) -> str:
         # Default behavior: basic explanation
         return self.summarize(report, deep_context=False)
 
     def summarize(self, report: DicomInsightReport, deep_context: bool = False) -> str:
-        system = "You are a Radiology Metadata Analyst. Provide a concise, clinical summary of the DICOM data provided."
+        system = (
+            "You are a Radiology Metadata Analyst. "
+            "Provide a concise, clinical summary of the DICOM data provided. "
+            "Format your response as a GitHub Markdown callout block: use '> [!NOTE]' "
+            "when the study appears normal or unremarkable, or '> [!CAUTION]' when you "
+            "identify potential issues, unexpected findings, or items requiring attention. "
+            "Start the block immediately with the callout marker and keep the summary brief."
+        )
         user = f"DICOM Metadata: {report.to_json()}"
         return self._query_gemini(system, user)
 
     def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]:
-        system = "You are a PACS Quality Assurance specialist. Identify technical inconsistencies in the DICOM metadata. Return a list of anomalies."
+        system = (
+            "You are a PACS Quality Assurance specialist. "
+            "Identify technical inconsistencies in the DICOM metadata. "
+            "For each anomaly found, format it as a GitHub Markdown callout block using "
+            "'> [!CAUTION]' for serious issues and '> [!NOTE]' for minor observations. "
+            "Return one callout block per anomaly, separated by a blank line."
+        )
         user = f"DICOM Metadata: {report.to_json()}"
         resp = self._query_gemini(system, user)
-        # Basic parsing: assume one per line if starting with '-' or number
-        return [line.strip("- *").strip() for line in resp.splitlines() if line.strip()]
+        # Split on blank lines to separate callout blocks; fall back to line-by-line
+        blocks = [block.strip() for block in resp.split("\n\n") if block.strip()]
+        if not blocks:
+            blocks = [line.strip("- *").strip() for line in resp.splitlines() if line.strip()]
+        return blocks
+
+    def analyze_anatomy(self, report: DicomInsightReport) -> str | None:
+        system = (
+            "You are a medical imaging expert. "
+            "Analyze the DICOM tags BodyPartExamined, ProtocolName, and SeriesDescription "
+            "from the metadata provided. "
+            "Identify the prevalent anatomical region (e.g., Abdomen, Chest, Head) and the "
+            "imaging projection (Axial, Coronal, Sagittal). "
+            "If the tags are consistent, respond with a single concise line such as: "
+            "'Anatomical region: **Chest** — projection: **Axial**.'. "
+            "If the tags are discordant, use your medical knowledge to infer the most likely "
+            "region, then format your answer as a GitHub Markdown callout using '> [!NOTE]', "
+            "briefly explaining the discordance and stating the most probable region. "
+            "Keep the response short."
+        )
+        user = f"DICOM Metadata: {report.to_json()}"
+        return self._query_gemini(system, user)
 

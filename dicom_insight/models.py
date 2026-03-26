@@ -21,6 +21,8 @@ class DicomSeriesReport:
     spacing_between_slices: float | None
     contrast_suspected: bool | None
     orientation: str | None
+    kernel: str | None = None
+    protocol_name: str | None = None
     warnings: list[str] = field(default_factory=list)
     raw_metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -50,6 +52,7 @@ class DicomInsightReport:
     explanation: str = ""
     ai_summary: str | None = None
     technical_anomalies: list[str] = field(default_factory=list)
+    anatomy_analysis: str | None = None
     warnings: list[str] = field(default_factory=list)
 
 

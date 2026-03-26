@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Iterable
+from typing import Any, Iterable
 
 from pydicom.dataset import Dataset
 
@@ -111,7 +111,6 @@ def dataset_to_dict_safe(ds: Dataset) -> dict[str, Any]:
                 out[elem.keyword or f"({elem.tag.group:04X},{elem.tag.element:04X})"] = val
         except (AttributeError, TypeError, ValueError): # Catch specific exceptions
             continue
-            continue
     return out
 
 
@@ -131,6 +130,8 @@ def summarize_series(datasets: Iterable[Dataset], include_raw: bool = False) -> 
     modality = _get_str(first, "Modality")
     pixel_spacing = _get_float_list(first, "PixelSpacing")
     body_part = _get_str(first, "BodyPartExamined")
+    kernel = _get_str(first, "ConvolutionKernel")
+    protocol_name = _get_str(first, "ProtocolName")
 
     if rows is None or cols is None:
         warnings.append("Missing image dimensions")
@@ -152,6 +153,8 @@ def summarize_series(datasets: Iterable[Dataset], include_raw: bool = False) -> 
         spacing_between_slices=spacing_between_slices,
         contrast_suspected=guess_contrast(first),
         orientation=guess_orientation(first),
+        kernel=kernel,
+        protocol_name=protocol_name,
         warnings=warnings,
     )
     if include_raw:

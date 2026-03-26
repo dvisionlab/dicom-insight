@@ -2,12 +2,34 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .explainer import explain_series, explain_study, make_summary
+from .explainer import explain_anatomy_heuristic, explain_series, explain_study, make_summary
 from .heuristics import summarize_series, summarize_study
-from .llm import ExplanationProvider
+from .llm import ExplanationProvider, GeminiError
 from .models import DicomInsightReport
 from .reader import iter_dicom_files, load_dataset
 from typing import Callable
+
+
+
+def _apply_provider(
+    report: DicomInsightReport,
+    provider: ExplanationProvider,
+    deep_context: bool,
+) -> bool:
+    """Call the LLM provider and populate the report's AI fields.
+
+    Returns True on success, False when the provider raises a GeminiError
+    so the caller can fall back to heuristic output and add a warning.
+    """
+    try:
+        report.explanation = provider.explain(report)
+        report.ai_summary = provider.summarize(report, deep_context=deep_context)
+        report.technical_anomalies = provider.detect_anomalies(report, deep_context=deep_context)
+        report.anatomy_analysis = provider.analyze_anatomy(report)
+        return True
+    except GeminiError as exc:
+        report.warnings.append(f"LLM analysis unavailable: {exc}")
+        return False
 
 
 
@@ -22,13 +44,17 @@ def analyze_file(
     report.summary = make_summary(report)
     
     if provider:
-        report.explanation = provider.explain(report)
-        report.ai_summary = provider.summarize(report, deep_context=deep_context)
-        report.technical_anomalies = provider.detect_anomalies(report, deep_context=deep_context)
+        if not _apply_provider(report, provider, deep_context):
+            report.explanation = explain_series(series_report)
+            report.anatomy_analysis = explain_anatomy_heuristic(report)
     else:
         report.explanation = explain_series(series_report)
-        
-    report.warnings = list(series_report.warnings)
+        report.anatomy_analysis = explain_anatomy_heuristic(report)
+
+    # Merge heuristic warnings; preserve any LLM-failure warning already in report.warnings
+    for w in series_report.warnings:
+        if w not in report.warnings:
+            report.warnings.append(w)
     return report
 
 
@@ -70,14 +96,18 @@ def analyze_path(
     report.summary = make_summary(report)
     
     if provider:
-        report.explanation = provider.explain(report)
-        report.ai_summary = provider.summarize(report, deep_context=deep_context)
-        report.technical_anomalies = provider.detect_anomalies(report, deep_context=deep_context)
+        if not _apply_provider(report, provider, deep_context):
+            report.explanation = explain_study(study_report)
+            report.anatomy_analysis = explain_anatomy_heuristic(report)
     else:
         report.explanation = explain_study(study_report)
-        
-    report.warnings = list(study_report.warnings)
-    if seen != len(files):  # Fixed logic: compare with total files found
+        report.anatomy_analysis = explain_anatomy_heuristic(report)
+
+    # Merge heuristic warnings; preserve any LLM-failure warning already in report.warnings
+    for w in study_report.warnings:
+        if w not in report.warnings:
+            report.warnings.append(w)
+    if seen != len(files):
         report.warnings.append("Some files could not be parsed")
     return report
 
