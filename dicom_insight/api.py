@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from .explainer import explain_anatomy_heuristic, explain_series, explain_study, make_summary
@@ -76,17 +78,27 @@ def analyze_path(
     if not files:
         raise FileNotFoundError(f"No readable DICOM files found in {path_obj}")
 
-    datasets = []
-    seen = 0
-    for i, file_path in enumerate(files):
+    progress_count = 0
+    progress_lock = threading.Lock()
+
+    def _load(file_path: Path):
+        nonlocal progress_count
+        result = None
         try:
-            datasets.append(load_dataset(file_path))
-            seen += 1
+            result = load_dataset(file_path)
         except Exception:
-            continue
-        
-        if on_progress:
-            on_progress(i + 1, total)
+            pass
+        with progress_lock:
+            progress_count += 1
+            if on_progress:
+                on_progress(progress_count, total)
+        return result
+
+    with ThreadPoolExecutor(max_workers=min(len(files), 64)) as executor:
+        results = list(executor.map(_load, files))
+
+    datasets = [r for r in results if r is not None]
+    seen = len(datasets)
 
     if not datasets:
         raise FileNotFoundError(f"No readable DICOM files found in {path_obj}")
