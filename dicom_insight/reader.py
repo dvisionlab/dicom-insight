@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from pydicom import dcmread
 from pydicom.dataset import Dataset
 from pydicom.errors import InvalidDicomError
-
 
 SUPPORTED_SUFFIXES = {".dcm", ".dicom", ""}
 
@@ -15,14 +14,10 @@ class DicomInsightError(RuntimeError):
     pass
 
 
-
 def is_probably_dicom(path: Path) -> bool:
     if not path.is_file():
         return False
-    if path.suffix.lower() in SUPPORTED_SUFFIXES:
-        return True
-    return True
-
+    return path.suffix.lower() in SUPPORTED_SUFFIXES
 
 
 def iter_dicom_files(path: str | Path) -> Iterable[Path]:
@@ -37,7 +32,6 @@ def iter_dicom_files(path: str | Path) -> Iterable[Path]:
             continue
         if is_probably_dicom(file_path):
             yield file_path
-
 
 
 def load_dataset(path: str | Path, stop_before_pixels: bool = True) -> Dataset:

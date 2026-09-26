@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from pydicom.dataset import Dataset
 
 from .models import DicomSeriesReport, DicomStudyReport
-
 
 CONTRAST_KEYWORDS = {
     "C+",
@@ -26,13 +26,11 @@ ORIENTATION_LABELS = {
 }
 
 
-
 def _get_str(ds: Dataset, name: str) -> str | None:
     value = getattr(ds, name, None)
     if value in (None, ""):
         return None
     return str(value)
-
 
 
 def _get_int(ds: Dataset, name: str) -> int | None:
@@ -45,7 +43,6 @@ def _get_int(ds: Dataset, name: str) -> int | None:
         return None
 
 
-
 def _get_float(ds: Dataset, name: str) -> float | None:
     value = getattr(ds, name, None)
     if value in (None, ""):
@@ -54,7 +51,6 @@ def _get_float(ds: Dataset, name: str) -> float | None:
         return float(value)
     except Exception:
         return None
-
 
 
 def _get_float_list(ds: Dataset, name: str) -> list[float] | None:
@@ -67,17 +63,25 @@ def _get_float_list(ds: Dataset, name: str) -> list[float] | None:
         return None
 
 
-
 def guess_orientation(ds: Dataset) -> str | None:
     values = getattr(ds, "ImageOrientationPatient", None)
     if not values:
         return None
     try:
-        rounded = tuple(int(round(float(x))) for x in values)
+        rounded_values = [int(round(float(x))) for x in values]
     except Exception:
         return None
+    if len(rounded_values) != 6:
+        return None
+    rounded = (
+        rounded_values[0],
+        rounded_values[1],
+        rounded_values[2],
+        rounded_values[3],
+        rounded_values[4],
+        rounded_values[5],
+    )
     return ORIENTATION_LABELS.get(rounded)
-
 
 
 def guess_contrast(ds: Dataset) -> bool | None:
@@ -96,10 +100,9 @@ def guess_contrast(ds: Dataset) -> bool | None:
     return False
 
 
-
 def dataset_to_dict_safe(ds: Dataset) -> dict[str, Any]:
     """Convert dataset to a dict of string/numeric tags, skipping binary/pixels."""
-    out = {}
+    out: dict[str, Any] = {}
     for elem in ds:
         if elem.VR in ("OB", "OW", "OF", "OD", "UN", "SQ"):
             continue
@@ -109,10 +112,9 @@ def dataset_to_dict_safe(ds: Dataset) -> dict[str, Any]:
                 out[elem.keyword or f"({elem.tag.group:04X},{elem.tag.element:04X})"] = val
             elif isinstance(val, list) and all(isinstance(x, (str, int, float)) for x in val):
                 out[elem.keyword or f"({elem.tag.group:04X},{elem.tag.element:04X})"] = val
-        except (AttributeError, TypeError, ValueError): # Catch specific exceptions
+        except (AttributeError, TypeError, ValueError):  # Catch specific exceptions
             continue
     return out
-
 
 
 def summarize_series(datasets: Iterable[Dataset], include_raw: bool = False) -> DicomSeriesReport:
@@ -163,7 +165,6 @@ def summarize_series(datasets: Iterable[Dataset], include_raw: bool = False) -> 
     return report
 
 
-
 def summarize_study(datasets: Iterable[Dataset], include_raw: bool = False) -> DicomStudyReport:
     items = list(datasets)
     if not items:
@@ -172,7 +173,7 @@ def summarize_study(datasets: Iterable[Dataset], include_raw: bool = False) -> D
     first = items[0]
     by_series: dict[str, list[Dataset]] = {}
     for ds in items:
-        key = _get_str(ds, "SeriesInstanceUID") or f"__series_{len(by_series)+1}"
+        key = _get_str(ds, "SeriesInstanceUID") or f"__series_{len(by_series) + 1}"
         by_series.setdefault(key, []).append(ds)
 
     series_reports = [summarize_series(group, include_raw=include_raw) for group in by_series.values()]
@@ -206,4 +207,3 @@ def summarize_study(datasets: Iterable[Dataset], include_raw: bool = False) -> D
         # We also collect common hints specifically
         report.raw_metadata = dataset_to_dict_safe(first)
     return report
-

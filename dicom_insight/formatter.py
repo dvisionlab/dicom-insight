@@ -1,4 +1,5 @@
 """Markdown formatting helpers for dicom-insight CLI output."""
+
 from __future__ import annotations
 
 import os
@@ -6,7 +7,7 @@ from typing import Any
 
 from tabulate import tabulate
 
-from .models import DicomInsightReport, DicomSeriesReport, DicomStudyReport
+from .models import DicomInsightReport, DicomSeriesReport
 
 
 def format_report_header(folder_name: str) -> str:

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from .api import analyze_path
-
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -20,13 +19,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include a tag detail table in the Markdown report (automatically enables deep-context mode)",
     )
-    parser.add_argument("--deep-context", action="store_true", help="Provide full metadata to the LLM (if used)")
+    parser.add_argument(
+        "--deep-context", action="store_true", help="Provide full metadata to the LLM (if used)"
+    )
     return parser
-
 
 
 def main(argv: list[str] | None = None) -> int:
     import os
+
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -38,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     api_key = os.environ.get("GOOGLE_API_KEY")
     if api_key:
         from .llm import GeminiProvider
+
         provider = GeminiProvider(api_key=api_key)
 
     if args.json:
@@ -45,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
         report = analyze_path(args.path, provider=provider, deep_context=deep_context)
         print(report.to_json())
     else:
-        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+        from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
         with Progress(
             SpinnerColumn(),
@@ -57,15 +59,22 @@ def main(argv: list[str] | None = None) -> int:
             task = progress.add_task("Reading DICOM files...", total=None)
 
             def update_progress(current: int, total: int):
-                progress.update(task, completed=current, total=total, description=f"Reading DICOM files ({current}/{total})")
+                progress.update(
+                    task,
+                    completed=current,
+                    total=total,
+                    description=f"Reading DICOM files ({current}/{total})",
+                )
 
-            report = analyze_path(args.path, on_progress=update_progress, provider=provider, deep_context=deep_context)
+            report = analyze_path(
+                args.path, on_progress=update_progress, provider=provider, deep_context=deep_context
+            )
 
         from .formatter import format_markdown_report
+
         print(format_markdown_report(report, show_tags=args.tags))
 
     return 0
-
 
 
 if __name__ == "__main__":  # pragma: no cover

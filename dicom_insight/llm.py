@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from .models import DicomInsightReport
+from .privacy import redact_report_for_llm
 
 
 class GeminiError(Exception):
@@ -55,25 +57,39 @@ class TemplateLLMProvider:
 
 @dataclass(slots=True)
 class GeminiProvider:
-    """Provider for Google Gemini models (2.0-flash, 3.1-pro, etc.)"""
-    api_key: str
+    """Provider for Google Gemini models (2.0-flash, 3.1-pro, etc.)
+
+    The metadata sent to Gemini is always redacted first (see
+    `dicom_insight.privacy.redact_report_for_llm`): direct patient/institution
+    identifiers such as PatientName, PatientID, PatientBirthDate, and
+    AccessionNumber are stripped before the request leaves the process. This
+    is a best-effort redaction, not full DICOM de-identification — do not
+    treat it as sufficient for HIPAA/GDPR compliance on its own.
+    """
+
+    api_key: str = field(repr=False)
     model: str = "gemini-3.1-pro-preview"
 
     def _query_gemini(self, system_instruction: str, user_prompt: str) -> str:
         # This is a 'Lite' implementation using httpx to avoid heavy SDKs
         import httpx
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        headers = {"x-goog-api-key": self.api_key}
         payload = {
             "system_instruction": {"parts": [{"text": system_instruction}]},
-            "contents": [{"parts": [{"text": user_prompt}]}]
+            "contents": [{"parts": [{"text": user_prompt}]}],
         }
         try:
-            resp = httpx.post(url, json=payload, timeout=30.0)
+            resp = httpx.post(url, headers=headers, json=payload, timeout=30.0)
             resp.raise_for_status()
             data = resp.json()
             return data["candidates"][0]["content"]["parts"][0]["text"]
         except Exception as e:
             raise GeminiError(str(e)) from e
+
+    def _redacted_metadata_json(self, report: DicomInsightReport) -> str:
+        return json.dumps(redact_report_for_llm(report), indent=2, ensure_ascii=False)
 
     def explain(self, report: DicomInsightReport) -> str:
         # Default behavior: basic explanation
@@ -88,7 +104,7 @@ class GeminiProvider:
             "identify potential issues, unexpected findings, or items requiring attention. "
             "Start the block immediately with the callout marker and keep the summary brief."
         )
-        user = f"DICOM Metadata: {report.to_json()}"
+        user = f"DICOM Metadata: {self._redacted_metadata_json(report)}"
         return self._query_gemini(system, user)
 
     def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]:
@@ -99,7 +115,7 @@ class GeminiProvider:
             "'> [!CAUTION]' for serious issues and '> [!NOTE]' for minor observations. "
             "Return one callout block per anomaly, separated by a blank line."
         )
-        user = f"DICOM Metadata: {report.to_json()}"
+        user = f"DICOM Metadata: {self._redacted_metadata_json(report)}"
         resp = self._query_gemini(system, user)
         # Split on blank lines to separate callout blocks; fall back to line-by-line
         blocks = [block.strip() for block in resp.split("\n\n") if block.strip()]
@@ -121,6 +137,5 @@ class GeminiProvider:
             "briefly explaining the discordance and stating the most probable region. "
             "Keep the response short."
         )
-        user = f"DICOM Metadata: {report.to_json()}"
+        user = f"DICOM Metadata: {self._redacted_metadata_json(report)}"
         return self._query_gemini(system, user)
-

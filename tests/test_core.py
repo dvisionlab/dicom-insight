@@ -11,7 +11,6 @@ from dicom_insight.llm import GeminiError
 from dicom_insight.models import DicomInsightReport
 
 
-
 def _make_dataset(path: Path, *, instance_number: int, series_uid: str, study_uid: str) -> None:
     meta = FileMetaDataset()
     meta.MediaStorageSOPClassUID = generate_uid()
@@ -42,7 +41,6 @@ def _make_dataset(path: Path, *, instance_number: int, series_uid: str, study_ui
     ds.save_as(str(path), write_like_original=False)
 
 
-
 def test_analyze_file() -> None:
     with TemporaryDirectory() as tmp:
         path = Path(tmp) / "one.dcm"
@@ -55,21 +53,21 @@ def test_analyze_file() -> None:
         assert "contrast" in report.explanation.lower()
 
 
-
 def test_analyze_path() -> None:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
         study_uid = generate_uid()
         series_uid = generate_uid()
         for i in range(3):
-            _make_dataset(root / f"slice_{i}.dcm", instance_number=i + 1, series_uid=series_uid, study_uid=study_uid)
+            _make_dataset(
+                root / f"slice_{i}.dcm", instance_number=i + 1, series_uid=series_uid, study_uid=study_uid
+            )
 
         report = analyze_path(root)
         assert report.study is not None
         assert len(report.study.series) == 1
         assert report.study.series[0].image_count == 3
         assert report.summary.startswith("Study with 1 series")
-
 
 
 def test_hidden_files_are_skipped() -> None:
@@ -79,20 +77,23 @@ def test_hidden_files_are_skipped() -> None:
         study_uid = generate_uid()
         series_uid = generate_uid()
         for i in range(2):
-            _make_dataset(root / f"slice_{i}.dcm", instance_number=i + 1, series_uid=series_uid, study_uid=study_uid)
+            _make_dataset(
+                root / f"slice_{i}.dcm", instance_number=i + 1, series_uid=series_uid, study_uid=study_uid
+            )
 
         # Create hidden files that should be ignored
         (root / "._resource_fork").write_bytes(b"\x00" * 4)
         (root / ".DS_Store").write_bytes(b"\x00" * 16)
         hidden_dir = root / ".hidden"
         hidden_dir.mkdir()
-        _make_dataset(hidden_dir / "slice_0.dcm", instance_number=3, series_uid=series_uid, study_uid=study_uid)
+        _make_dataset(
+            hidden_dir / "slice_0.dcm", instance_number=3, series_uid=series_uid, study_uid=study_uid
+        )
 
         report = analyze_path(root)
         assert report.study is not None
         # Only the 2 visible slices should be counted; hidden dir file excluded
         assert report.study.series[0].image_count == 2
-
 
 
 class _FailingProvider:
@@ -106,7 +107,6 @@ class _FailingProvider:
 
     def detect_anomalies(self, report: DicomInsightReport, deep_context: bool = False) -> list[str]:
         raise GeminiError("429 Resource has been exhausted")
-
 
 
 def test_gemini_failure_falls_back_to_heuristics_file() -> None:
@@ -128,7 +128,6 @@ def test_gemini_failure_falls_back_to_heuristics_file() -> None:
         assert any("LLM" in w for w in report.warnings)
 
 
-
 def test_gemini_failure_falls_back_to_heuristics_path() -> None:
     """Same fallback check for folder analysis."""
     with TemporaryDirectory() as tmp:
@@ -136,7 +135,9 @@ def test_gemini_failure_falls_back_to_heuristics_path() -> None:
         study_uid = generate_uid()
         series_uid = generate_uid()
         for i in range(3):
-            _make_dataset(root / f"slice_{i}.dcm", instance_number=i + 1, series_uid=series_uid, study_uid=study_uid)
+            _make_dataset(
+                root / f"slice_{i}.dcm", instance_number=i + 1, series_uid=series_uid, study_uid=study_uid
+            )
 
         report = analyze_path(root, provider=_FailingProvider())
 
@@ -151,6 +152,7 @@ def test_gemini_failure_falls_back_to_heuristics_path() -> None:
 # ---------------------------------------------------------------------------
 # Anatomy analysis tests
 # ---------------------------------------------------------------------------
+
 
 def test_anatomy_heuristic_consistent_tags() -> None:
     """HEAD BodyPartExamined + matching SeriesDescription → clean region line."""
@@ -173,8 +175,9 @@ def test_anatomy_heuristic_discordant_tags() -> None:
 
         # Overwrite the DICOM file with mismatched tags
         from pydicom import dcmread
+
         ds = dcmread(str(path))
-        ds.BodyPartExamined = "CHEST"       # says chest
+        ds.BodyPartExamined = "CHEST"  # says chest
         ds.SeriesDescription = "BRAIN MRI"  # says head/brain
         ds.save_as(str(path), write_like_original=False)
 
@@ -191,6 +194,7 @@ def test_anatomy_heuristic_no_recognisable_tags() -> None:
         _make_dataset(path, instance_number=1, series_uid=generate_uid(), study_uid=generate_uid())
 
         from pydicom import dcmread
+
         ds = dcmread(str(path))
         del ds.BodyPartExamined
         ds.SeriesDescription = "SCOUT"  # no anatomy keyword
