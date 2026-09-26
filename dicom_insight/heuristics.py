@@ -6,6 +6,7 @@ from typing import Any, Iterable
 from pydicom.dataset import Dataset
 
 from .models import DicomSeriesReport, DicomStudyReport
+from .pixel_stats import compute_pixel_stats
 
 
 CONTRAST_KEYWORDS = {
@@ -115,7 +116,9 @@ def dataset_to_dict_safe(ds: Dataset) -> dict[str, Any]:
 
 
 
-def summarize_series(datasets: Iterable[Dataset], include_raw: bool = False) -> DicomSeriesReport:
+def summarize_series(
+    datasets: Iterable[Dataset], include_raw: bool = False, include_pixels: bool = False
+) -> DicomSeriesReport:
     items = list(datasets)
     if not items:
         raise ValueError("Cannot summarize an empty series")
@@ -160,11 +163,18 @@ def summarize_series(datasets: Iterable[Dataset], include_raw: bool = False) -> 
     if include_raw:
         # Full first instance metadata as representative
         report.raw_metadata = dataset_to_dict_safe(first)
+    if include_pixels:
+        # Representative instance only; keeps folder-wide analysis affordable
+        report.pixel_stats = compute_pixel_stats(first)
+        if report.pixel_stats is None:
+            warnings.append("Pixel data could not be decoded")
     return report
 
 
 
-def summarize_study(datasets: Iterable[Dataset], include_raw: bool = False) -> DicomStudyReport:
+def summarize_study(
+    datasets: Iterable[Dataset], include_raw: bool = False, include_pixels: bool = False
+) -> DicomStudyReport:
     items = list(datasets)
     if not items:
         raise ValueError("Cannot summarize an empty study")
@@ -175,7 +185,10 @@ def summarize_study(datasets: Iterable[Dataset], include_raw: bool = False) -> D
         key = _get_str(ds, "SeriesInstanceUID") or f"__series_{len(by_series)+1}"
         by_series.setdefault(key, []).append(ds)
 
-    series_reports = [summarize_series(group, include_raw=include_raw) for group in by_series.values()]
+    series_reports = [
+        summarize_series(group, include_raw=include_raw, include_pixels=include_pixels)
+        for group in by_series.values()
+    ]
     modalities = sorted({s.modality for s in series_reports if s.modality})
     body_parts = sorted({s.body_part_examined for s in series_reports if s.body_part_examined})
     warnings: list[str] = []

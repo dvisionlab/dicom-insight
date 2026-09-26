@@ -6,6 +6,17 @@ import json
 
 
 @dataclass(slots=True)
+class PixelStats:
+    shape: tuple[int, ...]
+    dtype: str
+    min: float
+    max: float
+    mean: float
+    std: float
+    is_constant: bool
+
+
+@dataclass(slots=True)
 class DicomSeriesReport:
     series_instance_uid: str | None
     series_number: int | None
@@ -23,6 +34,7 @@ class DicomSeriesReport:
     orientation: str | None
     kernel: str | None = None
     protocol_name: str | None = None
+    pixel_stats: PixelStats | None = None
     warnings: list[str] = field(default_factory=list)
     raw_metadata: dict[str, Any] = field(default_factory=dict)
 

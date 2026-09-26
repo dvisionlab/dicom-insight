@@ -100,6 +100,9 @@ uv run dicom-insight ./study_folder --deep-context
 
 # JSON output
 uv run dicom-insight ./study_folder --json
+
+# Decode pixel data and report basic intensity statistics (slower, more memory)
+uv run dicom-insight ./study_folder --pixels
 ```
 
 ### Setting the `GOOGLE_API_KEY` environment variable
@@ -161,9 +164,18 @@ import os
 provider = GeminiProvider(api_key=os.environ["GOOGLE_API_KEY"], model="gemini-3.1-pro")
 ```
 
+## Pixel Data Statistics
+
+Pass `--pixels` (CLI) or `include_pixels=True` (`analyze_file`/`analyze_path`) to decode `PixelData`
+and compute basic intensity statistics per series: shape, dtype, min/max/mean/std, and whether the
+image is constant (e.g. blank). This is opt-in and off by default because decoding pixel data is
+significantly slower and more memory-intensive than reading metadata alone. Only a representative
+instance per series is analyzed, keeping folder-wide scans affordable.
+
 ## Limits
 
-- No pixel data inspection.
+- Pixel inspection is limited to basic intensity statistics on a representative instance; no
+  full pixel-level analysis, rendering, or viewer capabilities.
 - Heuristics are deterministic; AI insights are probabilistic.
 - Orientation detection remains conservative.
 
