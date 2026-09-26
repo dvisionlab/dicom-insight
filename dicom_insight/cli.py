@@ -20,7 +20,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include a tag detail table in the Markdown report (automatically enables deep-context mode)",
     )
     parser.add_argument(
-        "--deep-context", action="store_true", help="Provide full metadata to the LLM (if used)"
+        "--deep-context",
+        action="store_true",
+        help=(
+            "Provide fuller metadata to the LLM (if used); direct identifiers are still "
+            "redacted (see dicom_insight.privacy) regardless of this flag"
+        ),
     )
     parser.add_argument(
         "--pixels",
