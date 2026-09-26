@@ -10,9 +10,16 @@ process, independently of what is shown locally (e.g. via ``--tags``).
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .models import DicomInsightReport
+
+# Matches the "(GGGG,EEEE)" fallback key that dataset_to_dict_safe() uses when
+# a tag has no pydicom keyword — true of any private/vendor tag. Private tags
+# are a common place for vendors to stash patient- or site-identifying data,
+# so they are dropped wholesale rather than allow-listed tag by tag.
+_UNNAMED_TAG_RE = re.compile(r"^\([0-9A-Fa-f]{4},[0-9A-Fa-f]{4}\)$")
 
 # DICOM keywords that directly identify a patient, an episode of care, or the
 # staff/institution involved. This is intentionally conservative (favouring
@@ -51,7 +58,11 @@ _STUDY_LEVEL_PHI_FIELDS = ("accession_number",)
 
 
 def _redact_raw_metadata(raw_metadata: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in raw_metadata.items() if key not in PHI_KEYWORDS}
+    return {
+        key: value
+        for key, value in raw_metadata.items()
+        if key not in PHI_KEYWORDS and not _UNNAMED_TAG_RE.match(key)
+    }
 
 
 def redact_report_for_llm(report: DicomInsightReport) -> dict[str, Any]:

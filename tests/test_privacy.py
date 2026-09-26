@@ -51,3 +51,20 @@ def test_redact_report_for_llm_strips_source_path(dicom_file: Path) -> None:
 
     redacted = redact_report_for_llm(report)
     assert redacted["source"] is None
+
+
+def test_redact_report_for_llm_strips_private_tags(dicom_file: Path) -> None:
+    """Private/vendor tags (odd group, no pydicom keyword) can carry PHI that
+    a vendor stashed outside the standard dictionary; they must be dropped too."""
+    from pydicom import dcmread
+
+    ds = dcmread(str(dicom_file))
+    ds.add_new(0x00090010, "LO", "VendorPHI123")  # private tag, no keyword
+    ds.save_as(str(dicom_file), write_like_original=False)
+
+    report = analyze_file(dicom_file, deep_context=True)
+    assert report.series is not None
+    assert "(0009,0010)" in report.series.raw_metadata  # sanity: it *was* collected
+
+    redacted = redact_report_for_llm(report)
+    assert "(0009,0010)" not in redacted["series"]["raw_metadata"]
