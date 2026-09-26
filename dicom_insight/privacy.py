@@ -63,6 +63,10 @@ def redact_report_for_llm(report: DicomInsightReport) -> dict[str, Any]:
     """
     data = report.to_dict()
 
+    # The input file/folder path is user-controlled and can itself carry
+    # identifiers (e.g. an export named after a patient); never forward it.
+    data["source"] = None
+
     if data.get("study") is not None:
         for field_name in _STUDY_LEVEL_PHI_FIELDS:
             data["study"][field_name] = None

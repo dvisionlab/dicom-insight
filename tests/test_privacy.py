@@ -41,3 +41,13 @@ def test_redact_report_for_llm_without_deep_context_is_noop_safe(dicom_file: Pat
     report = analyze_file(dicom_file, deep_context=False)
     redacted = redact_report_for_llm(report)
     assert redacted["series"]["raw_metadata"] == {}
+
+
+def test_redact_report_for_llm_strips_source_path(dicom_file: Path) -> None:
+    """The input file/folder path is user-controlled and can itself carry PHI
+    (e.g. an export folder named after a patient); it must never reach the LLM."""
+    report = analyze_file(dicom_file, deep_context=True)
+    assert report.source == str(dicom_file)  # sanity: it *was* populated
+
+    redacted = redact_report_for_llm(report)
+    assert redacted["source"] is None
