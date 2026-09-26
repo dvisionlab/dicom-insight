@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -9,8 +10,6 @@ from .heuristics import summarize_series, summarize_study
 from .llm import ExplanationProvider, GeminiError
 from .models import DicomInsightReport
 from .reader import iter_dicom_files, load_dataset
-from typing import Callable
-
 
 
 def _apply_provider(
@@ -34,7 +33,6 @@ def _apply_provider(
         return False
 
 
-
 def analyze_file(
     path: str | Path,
     provider: ExplanationProvider | None = None,
@@ -45,7 +43,7 @@ def analyze_file(
     series_report = summarize_series([ds], include_raw=deep_context, include_pixels=include_pixels)
     report = DicomInsightReport(source=str(path), kind="file", series=series_report)
     report.summary = make_summary(report)
-    
+
     if provider:
         if not _apply_provider(report, provider, deep_context):
             report.explanation = explain_series(series_report)
@@ -61,7 +59,6 @@ def analyze_file(
     return report
 
 
-
 def analyze_path(
     path: str | Path,
     provider: ExplanationProvider | None = None,
@@ -71,12 +68,14 @@ def analyze_path(
 ) -> DicomInsightReport:
     path_obj = Path(path)
     if path_obj.is_file():
-        return analyze_file(path_obj, provider=provider, deep_context=deep_context, include_pixels=include_pixels)
+        return analyze_file(
+            path_obj, provider=provider, deep_context=deep_context, include_pixels=include_pixels
+        )
 
     # Collect files to get total count for progress reporting
     files = list(iter_dicom_files(path_obj))
     total = len(files)
-    
+
     if not files:
         raise FileNotFoundError(f"No readable DICOM files found in {path_obj}")
 
@@ -108,7 +107,7 @@ def analyze_path(
     study_report = summarize_study(datasets, include_raw=deep_context, include_pixels=include_pixels)
     report = DicomInsightReport(source=str(path), kind="path", study=study_report)
     report.summary = make_summary(report)
-    
+
     if provider:
         if not _apply_provider(report, provider, deep_context):
             report.explanation = explain_study(study_report)
@@ -126,11 +125,8 @@ def analyze_path(
     return report
 
 
-
-
 def explain_file(path: str | Path, provider: ExplanationProvider | None = None) -> str:
     return analyze_file(path, provider=provider).explanation
-
 
 
 def explain_path(path: str | Path, provider: ExplanationProvider | None = None) -> str:

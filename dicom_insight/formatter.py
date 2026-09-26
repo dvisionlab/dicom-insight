@@ -1,4 +1,5 @@
 """Markdown formatting helpers for dicom-insight CLI output."""
+
 from __future__ import annotations
 
 import os
@@ -6,7 +7,7 @@ from typing import Any
 
 from tabulate import tabulate
 
-from .models import DicomInsightReport, DicomSeriesReport, DicomStudyReport
+from .models import DicomInsightReport, DicomSeriesReport
 
 
 def format_report_header(folder_name: str) -> str:
@@ -45,16 +46,18 @@ def format_pixel_stats_table(series_list: list[DicomSeriesReport]) -> str:
             continue
         series_label = str(s.series_number) if s.series_number is not None else (s.description or "-")
         shape = "×".join(str(d) for d in stats.shape)
-        rows.append([
-            series_label,
-            shape,
-            stats.dtype,
-            f"{stats.min:g}",
-            f"{stats.max:g}",
-            f"{stats.mean:.2f}",
-            f"{stats.std:.2f}",
-            "yes" if stats.is_constant else "-",
-        ])
+        rows.append(
+            [
+                series_label,
+                shape,
+                stats.dtype,
+                f"{stats.min:g}",
+                f"{stats.max:g}",
+                f"{stats.mean:.2f}",
+                f"{stats.std:.2f}",
+                "yes" if stats.is_constant else "-",
+            ]
+        )
     headers = ["Series #", "Shape", "Dtype", "Min", "Max", "Mean", "Std", "Constant?"]
     return tabulate(rows, headers=headers, tablefmt="github")
 

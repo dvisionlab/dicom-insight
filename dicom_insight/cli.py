@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from .api import analyze_path
-
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -20,7 +19,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include a tag detail table in the Markdown report (automatically enables deep-context mode)",
     )
-    parser.add_argument("--deep-context", action="store_true", help="Provide full metadata to the LLM (if used)")
+    parser.add_argument(
+        "--deep-context",
+        action="store_true",
+        help=(
+            "Provide fuller metadata to the LLM (if used); direct identifiers are still "
+            "redacted (see dicom_insight.privacy) regardless of this flag"
+        ),
+    )
     parser.add_argument(
         "--pixels",
         action="store_true",
@@ -29,9 +35,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-
 def main(argv: list[str] | None = None) -> int:
     import os
+
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -43,14 +49,17 @@ def main(argv: list[str] | None = None) -> int:
     api_key = os.environ.get("GOOGLE_API_KEY")
     if api_key:
         from .llm import GeminiProvider
+
         provider = GeminiProvider(api_key=api_key)
 
     if args.json:
         # Don't show progress bar for JSON output to avoid polluting stdout
-        report = analyze_path(args.path, provider=provider, deep_context=deep_context, include_pixels=args.pixels)
+        report = analyze_path(
+            args.path, provider=provider, deep_context=deep_context, include_pixels=args.pixels
+        )
         print(report.to_json())
     else:
-        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+        from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 
         with Progress(
             SpinnerColumn(),
@@ -62,7 +71,12 @@ def main(argv: list[str] | None = None) -> int:
             task = progress.add_task("Reading DICOM files...", total=None)
 
             def update_progress(current: int, total: int):
-                progress.update(task, completed=current, total=total, description=f"Reading DICOM files ({current}/{total})")
+                progress.update(
+                    task,
+                    completed=current,
+                    total=total,
+                    description=f"Reading DICOM files ({current}/{total})",
+                )
 
             report = analyze_path(
                 args.path,
@@ -73,10 +87,10 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         from .formatter import format_markdown_report
+
         print(format_markdown_report(report, show_tags=args.tags))
 
     return 0
-
 
 
 if __name__ == "__main__":  # pragma: no cover

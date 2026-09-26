@@ -14,7 +14,7 @@ Medical imaging workflows are full of metadata that is technically rich but hard
 - a CLI for quick inspection
 - deterministic heuristics that work without a cloud dependency
 - an optional provider interface for LLM-powered explanations and anomaly detection
-- deep clinical reasoning using Google Gemini 3.1
+- an optional, redaction-aware integration with Google Gemini for deeper clinical reasoning
 
 ## Installation
 
@@ -40,17 +40,48 @@ from dicom_insight.llm import GeminiProvider
 provider = GeminiProvider(api_key="YOUR_GOOGLE_API_KEY", model="gemini-3.1-pro")
 report = analyze_path("./study_folder", provider=provider, deep_context=True)
 
-print(report.ai_summary)       # High-level protocol synthesis
-print(report.technical_anomalies) # AI-detected metadata inconsistencies
+print(report.ai_summary)  # High-level protocol synthesis
+print(report.technical_anomalies)  # AI-detected metadata inconsistencies
 ```
 
 ## AI-Powered Insights
 
-`dicom-insight` leverages LLMs (specializing in Gemini 3.1) to move beyond simple metadata listing:
+`dicom-insight` can optionally call out to an LLM (Gemini by default) to move beyond simple metadata listing:
 
 - **Intelligent Summarization**: Infers clinical protocols (e.g., "CT Head Stroke Protocol") by synthesizing multiple series.
 - **Technical Anomaly Detection**: Identifies subtle metadata "smells" like mismatched slice spacing or inconsistent reconstruction kernels.
 - **Deep Metadata Context**: Use the `--deep-context` flag to provide the LLM with the full richness of the DICOM header while maintaining smart deduplication for large studies.
+
+The specific Gemini model used is whatever you pass as `model=` (see below);
+availability and naming of Gemini model versions are controlled by Google and
+may change independently of this project.
+
+## Privacy & PHI
+
+DICOM headers routinely carry Protected Health Information (PHI) — patient
+name, patient ID, birth date, accession number, referring physician, and so
+on. When you configure a `GeminiProvider` (or set `GOOGLE_API_KEY`), that
+metadata is sent to a third-party LLM API over the network.
+
+To reduce that exposure, `dicom_insight.llm.GeminiProvider` **always** passes
+the report through `dicom_insight.privacy.redact_report_for_llm` before
+sending it to Gemini, which strips direct identifiers such as `PatientName`,
+`PatientID`, `PatientBirthDate`, `AccessionNumber`, and referring/performing
+physician names from the payload — regardless of whether `--deep-context` is
+set.
+
+This is a **best-effort redaction, not full DICOM de-identification** (see
+DICOM PS3.15 Annex E for what a complete de-identification profile involves).
+It does not touch what is displayed *locally* (e.g. via `--tags`), only what
+is sent to the LLM. Before pointing this at real patient data:
+
+- Confirm your use case, data-sharing agreements, and applicable regulations
+  (HIPAA, GDPR, etc.) permit sending de-identified imaging metadata to
+  Google's Gemini API.
+- Treat `--deep-context` / `--tags` as opt-in features for QA and development
+  workflows, not a guarantee of compliance.
+- Review `dicom_insight/privacy.py` if you need to extend the redaction list
+  for your institution's specific tag usage.
 
 ## Building executables
 
@@ -171,6 +202,11 @@ and compute basic intensity statistics per series: shape, dtype, min/max/mean/st
 image is constant (e.g. blank). This is opt-in and off by default because decoding pixel data is
 significantly slower and more memory-intensive than reading metadata alone. Only a representative
 instance per series is analyzed, keeping folder-wide scans affordable.
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, linting (`ruff`), type
+checking (`mypy`), and how to run the test suite.
 
 ## Limits
 

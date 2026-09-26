@@ -1,4 +1,5 @@
 """Pixel data intensity statistics (opt-in, requires decoded PixelData)."""
+
 from __future__ import annotations
 
 from pydicom.dataset import Dataset

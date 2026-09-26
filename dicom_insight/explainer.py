@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from collections import Counter
-
 from .models import DicomInsightReport, DicomSeriesReport, DicomStudyReport
-
 
 # ---------------------------------------------------------------------------
 # Body-part / anatomy helpers
 # ---------------------------------------------------------------------------
+
 
 def _human_body_part(body_part: str | None) -> str | None:
     if not body_part:
@@ -40,8 +38,15 @@ _ANATOMY_KEYWORDS: dict[str, list[str]] = {
 
 # Priority order when resolving conflicts: more specific wins
 _REGION_PRIORITY = [
-    "Abdomen and Pelvis", "Spine", "Extremity", "Kidney",
-    "Head", "Neck", "Chest", "Abdomen", "Pelvis",
+    "Abdomen and Pelvis",
+    "Spine",
+    "Extremity",
+    "Kidney",
+    "Head",
+    "Neck",
+    "Chest",
+    "Abdomen",
+    "Pelvis",
 ]
 
 
@@ -86,9 +91,7 @@ def explain_anatomy_heuristic(report: DicomInsightReport) -> str | None:
     unique_regions = set(tag_regions.values())
 
     # Determine projection (take from first non-None orientation in series list)
-    orientation: str | None = next(
-        (s.orientation for s in series_list if s.orientation), None
-    )
+    orientation: str | None = next((s.orientation for s in series_list if s.orientation), None)
     projection_text = f" — projection: **{orientation.capitalize()}**" if orientation else ""
 
     if len(unique_regions) == 1:
@@ -103,7 +106,9 @@ def explain_anatomy_heuristic(report: DicomInsightReport) -> str | None:
     else:
         # Prefer the region that appears earliest in the priority list
         all_regions = list(tag_regions.values())
-        best_region = min(all_regions, key=lambda r: _REGION_PRIORITY.index(r) if r in _REGION_PRIORITY else 99)
+        best_region = min(
+            all_regions, key=lambda r: _REGION_PRIORITY.index(r) if r in _REGION_PRIORITY else 99
+        )
 
     discordant_summary = ", ".join(f"{tag} → {region}" for tag, region in tag_regions.items())
     return (
@@ -116,7 +121,6 @@ def explain_anatomy_heuristic(report: DicomInsightReport) -> str | None:
 # ---------------------------------------------------------------------------
 # Text explanation helpers
 # ---------------------------------------------------------------------------
-
 
 
 def explain_series(series: DicomSeriesReport) -> str:
@@ -158,7 +162,6 @@ def explain_series(series: DicomSeriesReport) -> str:
     return "\n\n".join(parts)
 
 
-
 def explain_study(study: DicomStudyReport) -> str:
     parts: list[str] = []
     modality_text = ", ".join(study.modalities) if study.modalities else "unknown modality"
@@ -182,7 +185,6 @@ def explain_study(study: DicomStudyReport) -> str:
         parts.append("Warnings: " + "; ".join(study.warnings) + ".")
 
     return "\n\n".join(parts)
-
 
 
 def make_summary(report: DicomInsightReport) -> str:
