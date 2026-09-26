@@ -37,6 +37,31 @@ def format_series_table(series_list: list[DicomSeriesReport]) -> str:
     return tabulate(rows, headers=headers, tablefmt="github")
 
 
+def format_pixel_stats_table(series_list: list[DicomSeriesReport]) -> str:
+    """Return a Markdown table of per-series pixel intensity statistics."""
+    rows = []
+    for s in series_list:
+        stats = s.pixel_stats
+        if stats is None:
+            continue
+        series_label = str(s.series_number) if s.series_number is not None else (s.description or "-")
+        shape = "×".join(str(d) for d in stats.shape)
+        rows.append(
+            [
+                series_label,
+                shape,
+                stats.dtype,
+                f"{stats.min:g}",
+                f"{stats.max:g}",
+                f"{stats.mean:.2f}",
+                f"{stats.std:.2f}",
+                "yes" if stats.is_constant else "-",
+            ]
+        )
+    headers = ["Series #", "Shape", "Dtype", "Min", "Max", "Mean", "Std", "Constant?"]
+    return tabulate(rows, headers=headers, tablefmt="github")
+
+
 def format_tags_table(raw_metadata: dict[str, Any]) -> str:
     """Return a GitHub-flavoured Markdown table of raw DICOM tag key/value pairs."""
     rows = [[key, str(value)] for key, value in sorted(raw_metadata.items())]
@@ -75,6 +100,13 @@ def format_markdown_report(report: DicomInsightReport, show_tags: bool = False) 
         lines.append("## Series")
         lines.append("")
         lines.append(format_series_table(series_list))
+        lines.append("")
+
+    # --- Pixel data statistics (opt-in) ---
+    if any(s.pixel_stats for s in series_list):
+        lines.append("## Pixel Data")
+        lines.append("")
+        lines.append(format_pixel_stats_table(series_list))
         lines.append("")
 
     # --- Explanation text ---

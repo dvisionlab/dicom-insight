@@ -34,10 +34,13 @@ def _apply_provider(
 
 
 def analyze_file(
-    path: str | Path, provider: ExplanationProvider | None = None, deep_context: bool = False
+    path: str | Path,
+    provider: ExplanationProvider | None = None,
+    deep_context: bool = False,
+    include_pixels: bool = False,
 ) -> DicomInsightReport:
-    ds = load_dataset(path)
-    series_report = summarize_series([ds], include_raw=deep_context)
+    ds = load_dataset(path, stop_before_pixels=not include_pixels)
+    series_report = summarize_series([ds], include_raw=deep_context, include_pixels=include_pixels)
     report = DicomInsightReport(source=str(path), kind="file", series=series_report)
     report.summary = make_summary(report)
 
@@ -61,10 +64,13 @@ def analyze_path(
     provider: ExplanationProvider | None = None,
     on_progress: Callable[[int, int], None] | None = None,
     deep_context: bool = False,
+    include_pixels: bool = False,
 ) -> DicomInsightReport:
     path_obj = Path(path)
     if path_obj.is_file():
-        return analyze_file(path_obj, provider=provider, deep_context=deep_context)
+        return analyze_file(
+            path_obj, provider=provider, deep_context=deep_context, include_pixels=include_pixels
+        )
 
     # Collect files to get total count for progress reporting
     files = list(iter_dicom_files(path_obj))
@@ -80,7 +86,7 @@ def analyze_path(
         nonlocal progress_count
         result = None
         try:
-            result = load_dataset(file_path)
+            result = load_dataset(file_path, stop_before_pixels=not include_pixels)
         except Exception:
             pass
         with progress_lock:
@@ -98,7 +104,7 @@ def analyze_path(
     if not datasets:
         raise FileNotFoundError(f"No readable DICOM files found in {path_obj}")
 
-    study_report = summarize_study(datasets, include_raw=deep_context)
+    study_report = summarize_study(datasets, include_raw=deep_context, include_pixels=include_pixels)
     report = DicomInsightReport(source=str(path), kind="path", study=study_report)
     report.summary = make_summary(report)
 

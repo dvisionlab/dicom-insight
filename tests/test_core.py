@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import numpy as np
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import ExplicitVRLittleEndian, generate_uid
 
@@ -11,7 +12,14 @@ from dicom_insight.llm import GeminiError
 from dicom_insight.models import DicomInsightReport
 
 
-def _make_dataset(path: Path, *, instance_number: int, series_uid: str, study_uid: str) -> None:
+def _make_dataset(
+    path: Path,
+    *,
+    instance_number: int,
+    series_uid: str,
+    study_uid: str,
+    with_pixels: bool = False,
+) -> None:
     meta = FileMetaDataset()
     meta.MediaStorageSOPClassUID = generate_uid()
     meta.MediaStorageSOPInstanceUID = generate_uid()
@@ -38,6 +46,17 @@ def _make_dataset(path: Path, *, instance_number: int, series_uid: str, study_ui
     ds.InstanceNumber = instance_number
     ds.is_little_endian = True
     ds.is_implicit_VR = False
+
+    if with_pixels:
+        ds.SamplesPerPixel = 1
+        ds.PhotometricInterpretation = "MONOCHROME2"
+        ds.BitsAllocated = 16
+        ds.BitsStored = 16
+        ds.HighBit = 15
+        ds.PixelRepresentation = 0
+        pixel_array = np.full((ds.Rows, ds.Columns), instance_number * 10, dtype="uint16")
+        ds.PixelData = pixel_array.tobytes()
+
     ds.save_as(str(path), write_like_original=False)
 
 
@@ -213,3 +232,53 @@ def test_details_paragraph_breaks() -> None:
         report = analyze_file(path)
         # Paragraph break between each logical sentence
         assert "\n\n" in report.explanation
+
+
+# ---------------------------------------------------------------------------
+# Pixel data statistics tests
+# ---------------------------------------------------------------------------
+
+
+def test_pixel_stats_disabled_by_default() -> None:
+    """Without --pixels / include_pixels, no pixel data is decoded."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "one.dcm"
+        _make_dataset(
+            path, instance_number=1, series_uid=generate_uid(), study_uid=generate_uid(), with_pixels=True
+        )
+
+        report = analyze_file(path)
+        assert report.series is not None
+        assert report.series.pixel_stats is None
+
+
+def test_pixel_stats_computed_when_requested() -> None:
+    """With include_pixels=True, intensity statistics are computed from PixelData."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "one.dcm"
+        _make_dataset(
+            path, instance_number=1, series_uid=generate_uid(), study_uid=generate_uid(), with_pixels=True
+        )
+
+        report = analyze_file(path, include_pixels=True)
+        assert report.series is not None
+        stats = report.series.pixel_stats
+        assert stats is not None
+        assert stats.shape == (512, 512)
+        assert stats.min == 10.0
+        assert stats.max == 10.0
+        assert stats.is_constant is True
+
+
+def test_pixel_stats_missing_pixel_data() -> None:
+    """A dataset without PixelData yields pixel_stats=None plus a warning, not a crash."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "one.dcm"
+        _make_dataset(
+            path, instance_number=1, series_uid=generate_uid(), study_uid=generate_uid(), with_pixels=False
+        )
+
+        report = analyze_file(path, include_pixels=True)
+        assert report.series is not None
+        assert report.series.pixel_stats is None
+        assert any("Pixel data" in w for w in report.series.warnings)

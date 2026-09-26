@@ -22,6 +22,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--deep-context", action="store_true", help="Provide full metadata to the LLM (if used)"
     )
+    parser.add_argument(
+        "--pixels",
+        action="store_true",
+        help="Decode pixel data and include basic intensity statistics (slower, more memory)",
+    )
     return parser
 
 
@@ -44,7 +49,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.json:
         # Don't show progress bar for JSON output to avoid polluting stdout
-        report = analyze_path(args.path, provider=provider, deep_context=deep_context)
+        report = analyze_path(
+            args.path, provider=provider, deep_context=deep_context, include_pixels=args.pixels
+        )
         print(report.to_json())
     else:
         from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
@@ -67,7 +74,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
             report = analyze_path(
-                args.path, on_progress=update_progress, provider=provider, deep_context=deep_context
+                args.path,
+                on_progress=update_progress,
+                provider=provider,
+                deep_context=deep_context,
+                include_pixels=args.pixels,
             )
 
         from .formatter import format_markdown_report
