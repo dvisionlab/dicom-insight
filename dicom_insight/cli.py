@@ -21,6 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include a tag detail table in the Markdown report (automatically enables deep-context mode)",
     )
     parser.add_argument("--deep-context", action="store_true", help="Provide full metadata to the LLM (if used)")
+    parser.add_argument(
+        "--pixels",
+        action="store_true",
+        help="Decode pixel data and include basic intensity statistics (slower, more memory)",
+    )
     return parser
 
 
@@ -42,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.json:
         # Don't show progress bar for JSON output to avoid polluting stdout
-        report = analyze_path(args.path, provider=provider, deep_context=deep_context)
+        report = analyze_path(args.path, provider=provider, deep_context=deep_context, include_pixels=args.pixels)
         print(report.to_json())
     else:
         from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -59,7 +64,13 @@ def main(argv: list[str] | None = None) -> int:
             def update_progress(current: int, total: int):
                 progress.update(task, completed=current, total=total, description=f"Reading DICOM files ({current}/{total})")
 
-            report = analyze_path(args.path, on_progress=update_progress, provider=provider, deep_context=deep_context)
+            report = analyze_path(
+                args.path,
+                on_progress=update_progress,
+                provider=provider,
+                deep_context=deep_context,
+                include_pixels=args.pixels,
+            )
 
         from .formatter import format_markdown_report
         print(format_markdown_report(report, show_tags=args.tags))
